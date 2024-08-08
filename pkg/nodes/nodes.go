@@ -9,14 +9,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/redhat-best-practices-for-k8s/l2discovery-lib/pkg/l2client"
 	"github.com/sirupsen/logrus"
-	"github.com/test-network-function/l2discovery-lib/pkg/l2client"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // NodesSelector represent the label selector used to filter impacted nodes.
 var NodesSelector string
+
+const MinTimeout = 2 * time.Minute
 
 func init() {
 	NodesSelector = os.Getenv("NODES_SELECTOR")
@@ -87,7 +89,7 @@ func IsNodeReachable(node *corev1.Node) bool {
 func ExecAndLogCommand(logCommand bool, timeout time.Duration, name string, arg ...string) ([]byte, error) {
 	// Create a new context and add a timeout to it
 	if timeout <= 0 {
-		timeout = 2 * time.Minute
+		timeout = MinTimeout
 	}
 
 	ctx, cancel := context.WithTimeout(context.TODO(), timeout)

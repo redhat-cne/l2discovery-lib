@@ -5,7 +5,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/test-network-function/l2discovery-lib/pkg/l2client"
+	"github.com/redhat-best-practices-for-k8s/l2discovery-lib/pkg/l2client"
 	corev1 "k8s.io/api/core/v1"
 )
 
