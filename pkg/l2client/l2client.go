@@ -1,7 +1,7 @@
 package l2client
 
 import (
-	daemonsets "github.com/redhat-best-practices-for-k8s/privileged-daemonset"
+	daemonsets "github.com/redhat-cne/privileged-daemonset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )

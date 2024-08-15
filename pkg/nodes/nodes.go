@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/redhat-best-practices-for-k8s/l2discovery-lib/pkg/l2client"
+	"github.com/redhat-cne/l2discovery-lib/pkg/l2client"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
