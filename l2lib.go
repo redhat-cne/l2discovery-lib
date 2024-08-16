@@ -50,7 +50,7 @@ const (
 	L2DiscoveryContainerName       = "l2discovery"
 	timeoutDaemon                  = time.Second * 60
 	L2DiscoveryDuration            = time.Second * 15
-	l2DiscoveryImage               = "quay.io/testnetworkfunction/l2discovery:v9"
+	l2DiscoveryImage               = "quay.io/redhat-cne/l2discovery:v10"
 	L2ContainerCPULim              = "100m"
 	L2ContainerCPUReq              = "100m"
 	L2ContainerMemLim              = "100M"
