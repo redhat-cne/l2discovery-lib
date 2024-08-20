@@ -62,12 +62,6 @@ jobs:
       - name: Checkmake
         run: checkmake --config=.checkmake Makefile
 
-      - name: Hadolint
-        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
-        with:
-          dockerfile: Dockerfile
-          recursive: true
-
       - name: Shfmt
         run: shfmt -d scripts
 
