@@ -1,5 +1,7 @@
 GOLANGCI_VERSION=v1.53.2
 
+.PHONY: all clean test build
+
 lint:
 	golangci-lint run
 # Install golangci-lint	
