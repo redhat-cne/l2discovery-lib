@@ -36,7 +36,7 @@ type L2Info interface {
 	GetPortsGettingPTP() []*l2.PtpIf
 
 	SetL2Client(kubernetes.Interface, *rest.Config)
-	GetL2DiscoveryConfig(ptpInterfacesOnly bool) (config L2Info, err error)
+	GetL2DiscoveryConfig(ptpInterfacesOnly bool, l2DiscoveryImage string) (config L2Info, err error)
 }
 
 const (
@@ -50,7 +50,6 @@ const (
 	L2DiscoveryContainerName       = "l2discovery"
 	timeoutDaemon                  = time.Second * 60
 	L2DiscoveryDuration            = time.Second * 15
-	l2DiscoveryImage               = "quay.io/redhat-cne/l2discovery:v10"
 	L2ContainerCPULim              = "100m"
 	L2ContainerCPUReq              = "100m"
 	L2ContainerMemLim              = "100M"
@@ -140,9 +139,9 @@ func (config *L2DiscoveryConfig) SetL2Client(k8sClient kubernetes.Interface, res
 }
 
 // Gets existing L2 configuration or creates a new one  (if refresh is set to true)
-func (config *L2DiscoveryConfig) GetL2DiscoveryConfig(ptpInterfacesOnly bool) (L2Info, error) {
+func (config *L2DiscoveryConfig) GetL2DiscoveryConfig(ptpInterfacesOnly bool, l2DiscoveryImage string) (L2Info, error) {
 	if GlobalL2DiscoveryConfig.refresh {
-		err := GlobalL2DiscoveryConfig.DiscoverL2Connectivity(ptpInterfacesOnly)
+		err := GlobalL2DiscoveryConfig.DiscoverL2Connectivity(ptpInterfacesOnly, l2DiscoveryImage)
 		if err != nil {
 			GlobalL2DiscoveryConfig.refresh = false
 			return nil, fmt.Errorf("failed to discover L2 connectivity: %w", err)
@@ -165,7 +164,7 @@ func (config *L2DiscoveryConfig) reset() {
 }
 
 // Discovers the L2 connectivity using l2discovery daemonset
-func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly bool) error {
+func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly bool, l2DiscoveryImage string) error {
 	GlobalL2DiscoveryConfig.reset()
 	GlobalL2DiscoveryConfig.InitSkippedInterfaces()
 	// initializes clusterwide ptp interfaces
