@@ -5,7 +5,7 @@ set -o nounset -o pipefail
 cd examples || exit
 
 # Get latest changes
-echo "github.com/redhat-cne/l2discovery-lib => .." >>go.mod
+echo "replace github.com/redhat-cne/l2discovery-lib => .." >>go.mod
 go mod tidy
 go mod vendor
 
