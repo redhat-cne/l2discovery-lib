@@ -35,10 +35,17 @@ jobs:
       - name: Disable default go problem matcher
         run: echo "::remove-matcher owner=go::"
 
-      - name: Check out code
+      - name: Check out l2discovery-lib code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ github.sha }}
+      
+      - name: Check out l2discovery-examples code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          repository: redhat-cne/graphsolver-examples
+          ref: main
+          path: examples
 
       - name: Extract dependent Pull Requests
         uses: depends-on/depends-on-action@9e8a61fce18b15281e831f1bba0e14c71d1e1f46 # main
@@ -72,8 +79,8 @@ jobs:
         run: make build
         env:
           SHELL: /bin/bash
-
-      - name: Run Tests
+      
+      - name: Run examples cluster tests with this latest l2discovery-lib code
         run: make test
         env:
           SHELL: /bin/bash
