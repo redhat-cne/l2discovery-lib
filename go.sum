@@ -67,8 +67,8 @@ github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 h1:Jamvg5psRI
 github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/redhat-cne/l2discovery-exports v0.0.4 h1:oYZlk0lXEnLTO8nxnL1G54L+KdQ1WyA5zZFJln9/8uA=
 github.com/redhat-cne/l2discovery-exports v0.0.4/go.mod h1:hYvCYXSfngU/j+auFobgvKcwiu5DurO2BnUBoSmg/NA=
-github.com/redhat-cne/privileged-daemonset v1.0.32 h1:l8mPpZXeb6e2fdljoLEZ+6Eu2vH7aCeZlc6Crsr/DwA=
-github.com/redhat-cne/privileged-daemonset v1.0.32/go.mod h1:e6s1NtANXwNX0MOJxVLx2dMLXbyj54w1xO1Jn3CEGyA=
+github.com/redhat-cne/privileged-daemonset v1.0.33 h1:QQeb55Ug0eVl0tREpnuCnMDDNebDMyDzOcFho6Gbmdg=
+github.com/redhat-cne/privileged-daemonset v1.0.33/go.mod h1:e6s1NtANXwNX0MOJxVLx2dMLXbyj54w1xO1Jn3CEGyA=
 github.com/rogpeppe/go-internal v1.12.0 h1:exVL4IDcn6na9z1rAb56Vxr+CgyK3nn3O+epU5NdKM8=
 github.com/rogpeppe/go-internal v1.12.0/go.mod h1:E+RYuTGaKKdloAfM02xzb0FW3Paa99yedzYV+kq4uf4=
 github.com/sirupsen/logrus v1.9.3 h1:dueUQJ1C2q9oE3F7wvmSGAaVtTmUizReu6fjN8uqzbQ=

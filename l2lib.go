@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ type L2Info interface {
 	GetPortsGettingPTP() []*l2.PtpIf
 
 	SetL2Client(kubernetes.Interface, *rest.Config)
-	GetL2DiscoveryConfig(ptpInterfacesOnly bool, l2DiscoveryImage string) (config L2Info, err error)
+	GetL2DiscoveryConfig(ptpInterfacesOnly, allIFs bool, l2DiscoveryImage string) (config L2Info, err error)
 }
 
 const (
@@ -139,9 +140,9 @@ func (config *L2DiscoveryConfig) SetL2Client(k8sClient kubernetes.Interface, res
 }
 
 // Gets existing L2 configuration or creates a new one  (if refresh is set to true)
-func (config *L2DiscoveryConfig) GetL2DiscoveryConfig(ptpInterfacesOnly bool, l2DiscoveryImage string) (L2Info, error) {
+func (config *L2DiscoveryConfig) GetL2DiscoveryConfig(ptpInterfacesOnly, allIFs bool, l2DiscoveryImage string) (L2Info, error) {
 	if GlobalL2DiscoveryConfig.refresh {
-		err := GlobalL2DiscoveryConfig.DiscoverL2Connectivity(ptpInterfacesOnly, l2DiscoveryImage)
+		err := GlobalL2DiscoveryConfig.DiscoverL2Connectivity(ptpInterfacesOnly, allIFs, l2DiscoveryImage)
 		if err != nil {
 			GlobalL2DiscoveryConfig.refresh = false
 			return nil, fmt.Errorf("failed to discover L2 connectivity: %w", err)
@@ -164,7 +165,7 @@ func (config *L2DiscoveryConfig) reset() {
 }
 
 // Discovers the L2 connectivity using l2discovery daemonset
-func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly bool, l2DiscoveryImage string) error {
+func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly, allIFs bool, l2DiscoveryImage string) error {
 	GlobalL2DiscoveryConfig.reset()
 	GlobalL2DiscoveryConfig.InitSkippedInterfaces()
 	// initializes clusterwide ptp interfaces
@@ -173,7 +174,11 @@ func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly bool, 
 	config.L2DsMode = StringToL2Mode(os.Getenv("L2_DAEMONSET"))
 	if config.L2DsMode == Managed {
 		dummyMap := map[string]string{}
-		_, err = daemonsets.CreateDaemonSet(L2DiscoveryDsName, L2DiscoveryNsName, L2DiscoveryContainerName, l2DiscoveryImage, dummyMap, timeoutDaemon,
+		env := []v1core.EnvVar{}
+		if allIFs {
+			env = append(env, v1core.EnvVar{Name: "L2DISCOVERY_ALLIFS", Value: "true"})
+		}
+		_, err = daemonsets.CreateDaemonSet(L2DiscoveryDsName, L2DiscoveryNsName, L2DiscoveryContainerName, l2DiscoveryImage, dummyMap, env, timeoutDaemon,
 			L2ContainerCPUReq, L2ContainerCPULim, L2ContainerMemReq, L2ContainerMemLim)
 		if err != nil {
 			return fmt.Errorf("error creating l2 discovery daemonset, err=%s", err)
@@ -207,13 +212,14 @@ func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly bool, 
 
 // Print database with all NICs
 func (config *L2DiscoveryConfig) PrintAllNICs() {
+	logrus.Info("List All NICS (node name: interface)")
 	for index, aIf := range config.PtpIfList {
 		logrus.Infof("%d %s", index, aIf)
 	}
 
-	for index, island := range *config.LANs {
-		aLog := fmt.Sprintf("island %d: ", index)
-		for _, aIf := range island {
+	for index, lan := range *config.LANs {
+		aLog := fmt.Sprintf("LAN %d: ", index)
+		for _, aIf := range lan {
 			aLog += fmt.Sprintf("%s **** ", config.PtpIfList[aIf])
 		}
 		logrus.Debug(aLog)
@@ -224,8 +230,15 @@ func (config *L2DiscoveryConfig) PrintAllNICs() {
 func (config *L2DiscoveryConfig) getL2Disc(ptpInterfacesOnly bool) error {
 	config.DiscoveryMap = make(map[string]map[string]map[string]*l2.Neighbors)
 	index := 0
-	for _, aPod := range config.L2DiscoveryPods {
-		podLogs, _ := pods.GetLog(aPod, aPod.Spec.Containers[0].Name)
+	keys := make([]string, 0, len(config.L2DiscoveryPods))
+
+	for k := range config.L2DiscoveryPods {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		podLogs, _ := pods.GetLog(config.L2DiscoveryPods[k], config.L2DiscoveryPods[k].Spec.Containers[0].Name)
 		indexReport := strings.LastIndex(podLogs, "JSON_REPORT")
 		report := strings.Split(strings.Split(podLogs[indexReport:], `\n`)[0], "JSON_REPORT")[1]
 		var discDataPerNode map[string]map[string]*l2.Neighbors
@@ -233,12 +246,12 @@ func (config *L2DiscoveryConfig) getL2Disc(ptpInterfacesOnly bool) error {
 			return err
 		}
 
-		if _, ok := config.DiscoveryMap[aPod.Spec.NodeName]; !ok {
-			config.DiscoveryMap[aPod.Spec.NodeName] = make(map[string]map[string]*l2.Neighbors)
+		if _, ok := config.DiscoveryMap[config.L2DiscoveryPods[k].Spec.NodeName]; !ok {
+			config.DiscoveryMap[config.L2DiscoveryPods[k].Spec.NodeName] = make(map[string]map[string]*l2.Neighbors)
 		}
-		config.DiscoveryMap[aPod.Spec.NodeName] = discDataPerNode
+		config.DiscoveryMap[config.L2DiscoveryPods[k].Spec.NodeName] = discDataPerNode
 
-		config.createMaps(discDataPerNode, aPod.Spec.NodeName, &index, ptpInterfacesOnly)
+		config.createMaps(discDataPerNode, config.L2DiscoveryPods[k].Spec.NodeName, &index, ptpInterfacesOnly)
 	}
 	config.MaxL2GraphSize = index
 	return nil
@@ -247,10 +260,17 @@ func (config *L2DiscoveryConfig) getL2Disc(ptpInterfacesOnly bool) error {
 // Creates the Main topology graph
 func (config *L2DiscoveryConfig) createL2InternalGraph(ptpInterfacesOnly bool) error {
 	GlobalL2DiscoveryConfig.L2ConnectivityMap = graph.New(config.MaxL2GraphSize)
-	for _, aPod := range config.L2DiscoveryPods {
-		for iface, ifaceMap := range config.DiscoveryMap[aPod.Spec.NodeName][ExperimentalEthertype] {
+	keys := make([]string, 0, len(config.L2DiscoveryPods))
+
+	for k := range config.L2DiscoveryPods {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		for iface, ifaceMap := range config.DiscoveryMap[config.L2DiscoveryPods[k].Spec.NodeName][ExperimentalEthertype] {
 			for mac := range ifaceMap.Remote {
-				if v, ok := config.ClusterIndexToInt[l2.IfClusterIndex{InterfaceName: iface, NodeName: aPod.Spec.NodeName}]; ok {
+				if v, ok := config.ClusterIndexToInt[l2.IfClusterIndex{InterfaceName: iface, NodeName: config.L2DiscoveryPods[k].Spec.NodeName}]; ok {
 					if w, ok := config.ClusterMacToInt[mac]; ok {
 						if ptpInterfacesOnly &&
 							(strings.Contains(config.PtpIfList[v].IfPci.Description, "Virtual") ||
@@ -270,7 +290,7 @@ func (config *L2DiscoveryConfig) createL2InternalGraph(ptpInterfacesOnly bool) e
 	}
 	// Init LANs
 	out := graph.Components(config.L2ConnectivityMap)
-	logrus.Infof("%v", out)
+	logrus.Infof("LANs connectivity map: %v", out)
 	config.LANs = &out
 	config.PrintAllNICs()
 
@@ -280,14 +300,21 @@ func (config *L2DiscoveryConfig) createL2InternalGraph(ptpInterfacesOnly bool) e
 
 // Gets the grandmaster port by using L2 discovery data for ptp ethertype
 func (config *L2DiscoveryConfig) getInterfacesReceivingPTP(ptpInterfacesOnly bool) {
-	for _, aPod := range config.L2DiscoveryPods {
-		for _, ifaceMap := range config.DiscoveryMap[aPod.Spec.NodeName][PtpEthertype] {
+	keys := make([]string, 0, len(config.L2DiscoveryPods))
+
+	for k := range config.L2DiscoveryPods {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		for _, ifaceMap := range config.DiscoveryMap[config.L2DiscoveryPods[k].Spec.NodeName][PtpEthertype] {
 			if len(ifaceMap.Remote) == 0 {
 				continue
 			}
 			aPortGettingPTP := &l2.PtpIf{}
 			aPortGettingPTP.Iface = ifaceMap.Local
-			aPortGettingPTP.NodeName = aPod.Spec.NodeName
+			aPortGettingPTP.NodeName = config.L2DiscoveryPods[k].Spec.NodeName
 			aPortGettingPTP.InterfaceName = aPortGettingPTP.Iface.IfName
 
 			if ptpInterfacesOnly &&
@@ -335,15 +362,23 @@ func (config *L2DiscoveryConfig) isSkipped(aIfToCheck string) bool {
 
 // updates Mapping tables between interfaces index, mac address, and graph integer indexes for a given ethertype
 func (config *L2DiscoveryConfig) updateMaps(disc map[string]map[string]*l2.Neighbors, nodeName string, index *int, ethertype string, ptpInterfacesOnly bool) {
-	for _, ifaceData := range disc[ethertype] {
-		if _, ok := config.ClusterMacToInt[ifaceData.Local.IfMac.Data]; ok {
+	// Sorting L2 discovery
+	keys := make([]string, 0, len(disc[ethertype]))
+
+	for k := range disc[ethertype] {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		if _, ok := config.ClusterMacToInt[disc[ethertype][k].Local.IfMac.Data]; ok {
 			continue
 		}
 
 		aInterface := l2.PtpIf{}
 		aInterface.NodeName = nodeName
-		aInterface.InterfaceName = ifaceData.Local.IfName
-		aInterface.Iface = ifaceData.Local
+		aInterface.InterfaceName = disc[ethertype][k].Local.IfName
+		aInterface.Iface = disc[ethertype][k].Local
 
 		if ptpInterfacesOnly &&
 			(strings.Contains(aInterface.IfPci.Description, "Virtual") ||
@@ -352,17 +387,17 @@ func (config *L2DiscoveryConfig) updateMaps(disc map[string]map[string]*l2.Neigh
 				!aInterface.IfPTPCaps.HwRawClock) {
 			continue
 		}
-		config.PtpIfListUnfiltered[ifaceData.Local.IfMac.Data] = &aInterface
+		config.PtpIfListUnfiltered[disc[ethertype][k].Local.IfMac.Data] = &aInterface
 
-		if config.isSkipped(ifaceData.Local.IfName) {
+		if config.isSkipped(disc[ethertype][k].Local.IfName) {
 			continue
 		}
 
 		// create maps
-		config.ClusterMacToInt[ifaceData.Local.IfMac.Data] = *index
-		config.ClusterIndexToInt[l2.IfClusterIndex{InterfaceName: ifaceData.Local.IfName, NodeName: nodeName}] = *index
-		config.ClusterMacs[l2.IfClusterIndex{InterfaceName: ifaceData.Local.IfName, NodeName: nodeName}] = ifaceData.Local.IfMac.Data
-		config.ClusterIndexes[ifaceData.Local.IfMac.Data] = l2.IfClusterIndex{InterfaceName: ifaceData.Local.IfName, NodeName: nodeName}
+		config.ClusterMacToInt[disc[ethertype][k].Local.IfMac.Data] = *index
+		config.ClusterIndexToInt[l2.IfClusterIndex{InterfaceName: disc[ethertype][k].Local.IfName, NodeName: nodeName}] = *index
+		config.ClusterMacs[l2.IfClusterIndex{InterfaceName: disc[ethertype][k].Local.IfName, NodeName: nodeName}] = disc[ethertype][k].Local.IfMac.Data
+		config.ClusterIndexes[disc[ethertype][k].Local.IfMac.Data] = l2.IfClusterIndex{InterfaceName: disc[ethertype][k].Local.IfName, NodeName: nodeName}
 
 		config.PtpIfList = append(config.PtpIfList, &aInterface)
 		(*index)++
