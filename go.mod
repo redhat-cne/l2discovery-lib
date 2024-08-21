@@ -13,7 +13,7 @@ require (
 
 require (
 	github.com/redhat-cne/l2discovery-exports v0.0.4
-	github.com/redhat-cne/privileged-daemonset v1.0.32
+	github.com/redhat-cne/privileged-daemonset v1.0.33
 )
 
 require (
