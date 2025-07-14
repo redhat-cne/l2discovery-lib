@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/pkg/errors v0.9.1
-	github.com/redhat-cne/l2discovery-exports v0.0.4
+	github.com/redhat-cne/l2discovery-exports v0.0.6
 	github.com/redhat-cne/privileged-daemonset v1.0.34
 	github.com/sirupsen/logrus v1.9.3
 	github.com/yourbasic/graph v0.0.0-20210606180040-8ecfec1c2869
