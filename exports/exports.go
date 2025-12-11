@@ -37,6 +37,10 @@ type Mac struct {
 	Data string
 }
 
+func (mac Mac) String() string {
+	return mac.Data
+}
+
 type PCIAddress struct {
 	Device, Function, Description, Subsystem string
 }
