@@ -3,6 +3,11 @@ GO_PACKAGES=$(shell go list ./... | grep -v vendor)
 
 .PHONY: all clean test build build-l2discovery lint install-lint vet fmt image launch
 
+all: build test
+
+clean:
+	go clean ./...
+
 fmt:
 	go fmt ./...
 
