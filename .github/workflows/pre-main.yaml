@@ -12,8 +12,6 @@ permissions:
 
 env:
   TERM: xterm-color
-  CM_BIN: /usr/local/bin/checkmake
-  CM_URL_LINUX: https://github.com/mrtazz/checkmake/releases/download/0.2.2/checkmake-0.2.2.linux.amd64 # yamllint disable-line
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
@@ -46,9 +44,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install checkmake
-        run: |
-          curl --location --output $CM_BIN --silent $CM_URL_LINUX
-          chmod +x $CM_BIN
+        run: go install github.com/checkmake/checkmake/cmd/checkmake@latest
 
       - name: Install Shfmt
         uses: mfinelli/setup-shfmt@031e887e39d899d773a7e9b6dd6472c2c23ff50d # v3.0.1
