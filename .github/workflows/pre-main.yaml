@@ -39,13 +39,6 @@ jobs:
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           ref: ${{ github.sha }}
-      
-      - name: Check out l2discovery-examples code
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
-        with:
-          repository: redhat-cne/graphsolver-examples
-          ref: main
-          path: examples
 
       - name: Extract dependent Pull Requests
         uses: depends-on/depends-on-action@9e8a61fce18b15281e831f1bba0e14c71d1e1f46 # main
@@ -61,13 +54,23 @@ jobs:
         uses: mfinelli/setup-shfmt@031e887e39d899d773a7e9b6dd6472c2c23ff50d # v3.0.1
 
       - name: Golangci-lint
-        uses: golangci/golangci-lint-action@aaa42aa0628b4ae2578232a66b541047968fac86 # v6.1.0
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.59
+          version: v1.64
           args: --timeout 10m0s
 
       - name: Checkmake
         run: checkmake --config=.checkmake Makefile
+
+      - name: Hadolint
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
+        with:
+          dockerfile: Dockerfile
+          recursive: true
+          failure-threshold: error
+
+      - name: Shfmt
+        run: shfmt -d scripts
 
       - name: ShellCheck
         uses: ludeeus/action-shellcheck@00b27aa7cb85167568cb48a3838b75f4265f2bca # master
@@ -79,8 +82,8 @@ jobs:
         run: make build
         env:
           SHELL: /bin/bash
-      
-      - name: Run examples cluster tests with this latest l2discovery-lib code
+
+      - name: Run tests
         run: make test
         env:
           SHELL: /bin/bash

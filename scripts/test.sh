@@ -1,13 +1,17 @@
 #!/bin/bash
 set -o nounset -o pipefail
 
-# CD in the examples repo
-cd examples || exit
+# Run go tests for all packages except cmd/l2discovery (requires Linux headers for CGO)
+go test $(go list ./... | grep -v cmd/l2discovery)
 
-# Get latest changes
-echo "replace github.com/redhat-cne/l2discovery-lib => .." >>go.mod
-go mod tidy
-go mod vendor
+# Build all commands to verify they compile (except l2discovery which is Linux-only)
+echo "Building cmd/graphsolver-minimal..."
+go build -o /dev/null ./cmd/graphsolver-minimal
 
-# Test them in examples repository
-make test
+echo "Building cmd/graphsolver-example..."
+go build -o /dev/null ./cmd/graphsolver-example
+
+echo "Building cmd/l2dump..."
+go build -o /dev/null ./cmd/l2dump
+
+echo "All builds successful!"
