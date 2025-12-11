@@ -2,6 +2,7 @@
 set -o nounset -o pipefail
 
 # Run go tests for all packages except cmd/l2discovery (requires Linux headers for CGO)
+# shellcheck disable=SC2046
 go test $(go list ./... | grep -v cmd/l2discovery)
 
 # Build all commands to verify they compile (except l2discovery which is Linux-only)
