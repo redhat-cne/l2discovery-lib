@@ -44,7 +44,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install checkmake
-        run: go install github.com/checkmake/checkmake/cmd/checkmake@latest
+        run: go install github.com/mrtazz/checkmake/cmd/checkmake@latest
 
       - name: Install Shfmt
         uses: mfinelli/setup-shfmt@031e887e39d899d773a7e9b6dd6472c2c23ff50d # v3.0.1
