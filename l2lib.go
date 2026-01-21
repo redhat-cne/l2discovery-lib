@@ -399,7 +399,7 @@ func (config *L2DiscoveryConfig) getInterfacesReceivingPTP(ptpInterfacesOnly boo
 			aPortGettingPTP := &exports.PtpIf{}
 			aPortGettingPTP.Iface = ifaceMap.Local
 			aPortGettingPTP.NodeName = config.L2DiscoveryPods[k].Spec.NodeName
-			aPortGettingPTP.InterfaceName = aPortGettingPTP.Iface.IfName
+			aPortGettingPTP.InterfaceName = aPortGettingPTP.IfName
 
 			if ptpInterfacesOnly &&
 				(strings.Contains(aPortGettingPTP.IfPci.Description, "Virtual") ||
