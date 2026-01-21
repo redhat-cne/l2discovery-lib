@@ -1,50 +1,7 @@
-linters-settings:
-  dupl:
-    threshold: 100
-  funlen:
-    lines: 60
-    statements: 45
-  goconst:
-    min-len: 4
-    min-occurrences: 2
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - experimental
-      - opinionated
-      - performance
-      - style
-    disabled-checks:
-      - whyNoLint
-  gocyclo:
-    min-complexity: 20
-  mnd:
-    # do not include the "operation" and "assign"
-    checks:
-      - argument
-      - case
-      - condition
-      - return
-  govet:
-    settings:
-      printf:
-        funcs:
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
-          - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
-  lll:
-    line-length: 250
-  nolintlint:
-    allow-unused: false # report any unused nolint directives
-    require-explanation: false # do not require an explanation for nolint directives
-    require-specific: true # require nolint directives to be specific about which linter is being skipped
-  exhaustive:
-    default-signifies-exhaustive: true
+version: "2"
+
 linters:
-  # please, do not use `enable-all`: it's deprecated and will be removed soon.
-  # inverted configuration with `enable-all` and `disable` is not scalable during updates of golangci-lint
-  disable-all: true
+  default: none
   enable:
     - bodyclose
     - dogsled
@@ -54,43 +11,68 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - gofmt
-    - goimports
-    - mnd
     - goprintffuncname
     - gosec
-    - gosimple
     - govet
     - ineffassign
     - lll
     - misspell
+    - mnd
     - nolintlint
     - rowserrcheck
-    - staticcheck
-    - stylecheck
+    - staticcheck  # includes gosimple and stylecheck in v2
     - unconvert
     - unparam
     - whitespace
-  # do not enable:
-  # - asciicheck
-  # - depguard
-  # - dupl
-  # - gochecknoglobals
-  # - gochecknoinits
-  # - gocognit
-  # - godot
-  # - godox
-  # - goerr113
-  # - maligned
-  # - nakedret
-  # - nestif
-  # - noctx
-  # - prealloc
-  # - revive
-  # - exportloopref
-  # - structcheck
-  # - testpackage
-  # - wsl
+  settings:
+    dupl:
+      threshold: 100
+    funlen:
+      lines: 60
+      statements: 45
+    goconst:
+      min-len: 4
+      min-occurrences: 2
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+      disabled-checks:
+        - whyNoLint
+    gocyclo:
+      min-complexity: 20
+    mnd:
+      # do not include the "operation" and "assign"
+      checks:
+        - argument
+        - case
+        - condition
+        - return
+    govet:
+      settings:
+        printf:
+          funcs:
+            - (github.com/golangci/golangci-lint/pkg/logutils.Log).Infof
+            - (github.com/golangci/golangci-lint/pkg/logutils.Log).Warnf
+            - (github.com/golangci/golangci-lint/pkg/logutils.Log).Errorf
+            - (github.com/golangci/golangci-lint/pkg/logutils.Log).Fatalf
+    lll:
+      line-length: 250
+    nolintlint:
+      allow-unused: false # report any unused nolint directives
+      require-explanation: false # do not require an explanation for nolint directives
+      require-specific: true # require nolint directives to be specific about which linter is being skipped
+    exhaustive:
+      default-signifies-exhaustive: true
+
+formatters:
+  enable:
+    - gofmt
+    - goimports
+
 issues:
   exclude-dirs:
     - cmd/l2discovery
@@ -122,8 +104,3 @@ issues:
     - linters:
         - gocritic
       text: "unnecessaryDefer:"
-    # Ignore static strings in tests
-
-
-# golangci.com configuration
-# https://github.com/golangci/golangci/wiki/Configuration
