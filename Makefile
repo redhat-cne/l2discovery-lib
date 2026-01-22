@@ -1,4 +1,4 @@
-GOLANGCI_VERSION=v2.1.6
+GOLANGCI_VERSION=latest
 GO_PACKAGES=$(shell go list ./... | grep -v vendor)
 
 .PHONY: all clean test build build-l2discovery lint install-lint vet fmt image launch

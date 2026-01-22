@@ -373,6 +373,7 @@ func applyStep(config exports.L2Info, step [][]int, combinations []int) bool {
 			negate = test[negationIdx] == Negative
 		}
 
+		//nolint:gosec // G602: slice indices are controlled by step definition and param count in test[1]
 		switch test[1] {
 		case int(NoParam):
 			stepResult = AlgoCode0[test[0]]()
