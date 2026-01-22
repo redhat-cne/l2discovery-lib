@@ -1,6 +1,6 @@
 module github.com/redhat-cne/l2discovery-lib
 
-go 1.25
+go 1.24
 
 require (
 	github.com/goccy/go-graphviz v0.1.3
