@@ -53,8 +53,6 @@ supports-priv-flags: no`,
 		})
 	}
 }
-
-//nolint:funlen
 func TestParseLspci(t *testing.T) {
 	type args struct {
 		output string

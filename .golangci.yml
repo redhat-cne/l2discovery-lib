@@ -24,6 +24,36 @@ linters:
     - unconvert
     - unparam
     - whitespace
+  exclusions:
+    paths:
+      - cmd/l2discovery
+    rules:
+      # Ignore magic numbers, inline strings and function length in tests.
+      - path: _test\.go
+        linters:
+          - mnd
+          - goconst
+          - funlen
+      - path: config/config.go
+        linters:
+          - mnd
+      - path: _scaling.go
+        linters:
+          - gocritic
+      - path: hugepages.go
+        linters:
+          - mnd
+      - path: scheduling.go
+        linters:
+          - mnd
+      # Ignore line length for string assignments (do not try and wrap regex definitions)
+      - linters:
+          - lll
+        source: "^(.*= (\".*\"|`.*`))$"
+      # https://github.com/go-critic/go-critic/issues/926
+      - linters:
+          - gocritic
+        text: "unnecessaryDefer:"
   settings:
     dupl:
       threshold: 100
@@ -72,35 +102,3 @@ formatters:
   enable:
     - gofmt
     - goimports
-
-issues:
-  exclude-dirs:
-    - cmd/l2discovery
-  # Excluding configuration per-path, per-linter, per-text and per-source
-  exclude-rules:
-    # Ignore magic numbers, inline strings and function length in tests.
-    - path: _test\.go
-      linters:
-        - mnd
-        - goconst
-        - funlen
-    - path: config/config.go
-      linters:
-        - mnd
-    - path: _scaling.go
-      linters:
-        - gocritic
-    - path: hugepages.go
-      linters:
-        - mnd
-    - path: scheduling.go
-      linters:
-        - mnd
-    # Ignore line length for string assignments (do not try and wrap regex definitions)
-    - linters:
-        - lll
-      source: "^(.*= (\".*\"|`.*`))$"
-    # https://github.com/go-critic/go-critic/issues/926
-    - linters:
-        - gocritic
-      text: "unnecessaryDefer:"
