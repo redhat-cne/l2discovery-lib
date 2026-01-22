@@ -330,7 +330,10 @@ func (config *L2DiscoveryConfig) getL2Disc(ptpInterfacesOnly bool) error {
 	sort.Strings(keys)
 
 	for _, k := range keys {
-		podLogs, _ := pods.GetLog(config.L2DiscoveryPods[k], config.L2DiscoveryPods[k].Spec.Containers[0].Name)
+		podLogs, err := pods.GetLog(config.L2DiscoveryPods[k], config.L2DiscoveryPods[k].Spec.Containers[0].Name)
+		if err != nil {
+			return fmt.Errorf("failed to get logs for pod %s on node %s: %w", config.L2DiscoveryPods[k].Name, config.L2DiscoveryPods[k].Spec.NodeName, err)
+		}
 		indexReport := strings.LastIndex(podLogs, "JSON_REPORT")
 		if indexReport == -1 {
 			return fmt.Errorf("no JSON_REPORT found in pod logs for pod %s on node %s", config.L2DiscoveryPods[k].Name, config.L2DiscoveryPods[k].Spec.NodeName)
