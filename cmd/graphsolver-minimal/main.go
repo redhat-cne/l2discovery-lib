@@ -37,21 +37,54 @@ func (config testGraph) GetPortsGettingPTP() []*exports.PtpIf {
 // Runs Solver to find optimal configurations
 func main() {
 	const (
-		// problem/scenario name
-		findOCProblemName = "OC"
+		// problem/scenario names
+		findOCProblemName     = "OC"
+		filteredOCProblemName = "filtered-OC"
 
 		// unique id for each tag, e.g. solution role
 		tagSlave       = 0
 		tagGrandmaster = 1
 	)
 
+	// Simulate PTP Announce data received from two different grandmasters.
+	// GM1: domain 24, clock class 6 (locked to GPS)
+	gm1 := &exports.PtpAnnounceData{
+		DomainNumber:         24,
+		GrandmasterPriority1: 128,
+		ClockClass:           6,
+		ClockAccuracy:        0x21,
+		GrandmasterPriority2: 128,
+		GrandmasterIdentity:  "001b19fffe010203",
+		StepsRemoved:         0,
+		TimeSource:           0x20,
+	}
+	// GM2: domain 0, clock class 248 (freerun)
+	gm2 := &exports.PtpAnnounceData{
+		DomainNumber:         0,
+		GrandmasterPriority1: 128,
+		ClockClass:           248,
+		ClockAccuracy:        0xFE,
+		GrandmasterPriority2: 128,
+		GrandmasterIdentity:  "aabbccfffe112233",
+		StepsRemoved:         0,
+		TimeSource:           0xA0,
+	}
+
+	// Both interfaces see both GMs (they are on the same LAN)
+	announces := map[string]*exports.PtpAnnounceData{
+		gm1.GrandmasterIdentity: gm1,
+		gm2.GrandmasterIdentity: gm2,
+	}
+
 	if1 := exports.PtpIf{
 		IfClusterIndex: exports.IfClusterIndex{InterfaceName: "ens3f0", NodeName: "node1"},
 		Iface:          exports.Iface{IfName: "ens3f0", IfMac: exports.Mac{Data: "52:55:00:81:c2:62"}, IfPci: exports.PCIAddress{Device: "00:03", Function: "0"}},
+		Announces:      announces,
 	}
 	if2 := exports.PtpIf{
 		IfClusterIndex: exports.IfClusterIndex{InterfaceName: "ens3f0", NodeName: "node2"},
 		Iface:          exports.Iface{IfName: "ens3f0", IfMac: exports.Mac{Data: "52:55:00:81:c2:63"}, IfPci: exports.PCIAddress{Device: "00:03", Function: "0"}},
+		Announces:      announces,
 	}
 	lans := [][]int{{0, 1}}
 	aGraph := testGraph{ifList: []*exports.PtpIf{&if1, &if2}, lans: &lans, ptpInterfaces: nil}
@@ -59,7 +92,7 @@ func main() {
 	// initialize L2 config in solver
 	graphsolver.GlobalConfig.SetL2Config(&aGraph)
 
-	// Initializing problems
+	// Problem 1: Basic OC - find two interfaces on the same LAN
 	graphsolver.GlobalConfig.InitProblem(
 		findOCProblemName,
 		[][][]int{
@@ -69,9 +102,28 @@ func main() {
 		[]int{tagSlave: 0, tagGrandmaster: 1},
 	)
 
-	// Run solver for problem
-	graphsolver.GlobalConfig.Run(findOCProblemName)
+	// Problem 2: Filtered OC - find two interfaces on the same LAN with PTP domain 24
+	// and clock class < 135 (i.e., a valid GM signal)
+	graphsolver.GlobalConfig.InitProblem(
+		filteredOCProblemName,
+		[][][]int{
+			{ // step1: first interface must have domain 24 and clock class < 135
+				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 0, 24, graphsolver.Positive),
+				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 0, 135, graphsolver.Positive),
+			},
+			{ // step2: second interface on same LAN, also domain 24 and clock class < 135
+				graphsolver.Step2(graphsolver.StepSameLan2, 0, 1, graphsolver.Positive),
+				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 1, 24, graphsolver.Positive),
+				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 1, 135, graphsolver.Positive),
+			},
+		},
+		[]int{tagSlave: 0, tagGrandmaster: 1},
+	)
 
-	// print first solution
+	// Run solver for both problems
+	graphsolver.GlobalConfig.Run(findOCProblemName)
+	graphsolver.GlobalConfig.Run(filteredOCProblemName)
+
+	// print all solutions
 	graphsolver.GlobalConfig.PrintAllSolutions()
 }

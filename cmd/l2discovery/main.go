@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -161,6 +162,84 @@ func (frame *Frame) String() string {
 	return fmt.Sprintf("DA=%s SA=%s TYPE=%s", frame.MacDa, frame.MacSa, frame.Type)
 }
 
+// PTP Announce message offsets from start of PTP header.
+// PTP common header is 34 bytes, announce body is 30 bytes.
+const (
+	ptpMessageTypeAnnounce = 0x0B
+	ptpPtpHeaderSize       = 34
+	ptpAnnounceBodySize    = 30
+	ptpMinAnnouncePayload  = ptpPtpHeaderSize + ptpAnnounceBodySize
+
+	// Offsets from start of PTP header
+	ptpOffsetMessageType            = 0
+	ptpOffsetDomainNumber           = 4
+	ptpOffsetGrandmasterPriority1   = 47
+	ptpOffsetClockClass             = 48
+	ptpOffsetClockAccuracy          = 49
+	ptpOffsetOffsetScaledLogVar     = 50
+	ptpOffsetGrandmasterPriority2   = 52
+	ptpOffsetGrandmasterIdentity    = 53
+	ptpOffsetGrandmasterIdentityEnd = 61
+	ptpOffsetStepsRemoved           = 61
+	ptpOffsetTimeSource             = 63
+)
+
+// ethernetHeaderLen returns the length of the Ethernet header, accounting for VLAN tags.
+// Returns ok=false if the frame is too short to parse.
+func ethernetHeaderLen(rawFrame []byte) (headerLen int, ok bool) {
+	if len(rawFrame) < 14 {
+		return 0, false
+	}
+	headerLen = 14
+	offset := 12
+	ethType := binary.BigEndian.Uint16(rawFrame[offset : offset+2])
+	for ethType == 0x8100 || ethType == 0x88a8 {
+		// VLAN tag adds 4 bytes (TPID + TCI)
+		if len(rawFrame) < headerLen+4 {
+			return 0, false
+		}
+		headerLen += 4
+		offset += 4
+		if len(rawFrame) < offset+2 {
+			return 0, false
+		}
+		ethType = binary.BigEndian.Uint16(rawFrame[offset : offset+2])
+	}
+	return headerLen, true
+}
+
+// parsePtpAnnounce decodes a PTP Announce message from a raw Ethernet frame.
+// Returns nil if the frame is not a PTP Announce message or is too short.
+func parsePtpAnnounce(rawFrame []byte) *exports.PtpAnnounceData {
+	ethHeaderLen, ok := ethernetHeaderLen(rawFrame)
+	if !ok {
+		return nil
+	}
+	if len(rawFrame) < ethHeaderLen+ptpMinAnnouncePayload {
+		return nil
+	}
+	// Check message type (lower nibble of first PTP byte)
+	base := ethHeaderLen
+	messageType := rawFrame[base+ptpOffsetMessageType] & 0x0F
+	if messageType != ptpMessageTypeAnnounce {
+		return nil
+	}
+
+	announce := &exports.PtpAnnounceData{
+		DomainNumber:            rawFrame[base+ptpOffsetDomainNumber],
+		GrandmasterPriority1:    rawFrame[base+ptpOffsetGrandmasterPriority1],
+		ClockClass:              rawFrame[base+ptpOffsetClockClass],
+		ClockAccuracy:           rawFrame[base+ptpOffsetClockAccuracy],
+		OffsetScaledLogVariance: binary.BigEndian.Uint16(rawFrame[base+ptpOffsetOffsetScaledLogVar : base+ptpOffsetOffsetScaledLogVar+2]),
+		GrandmasterPriority2:    rawFrame[base+ptpOffsetGrandmasterPriority2],
+		GrandmasterIdentity:     hex.EncodeToString(rawFrame[base+ptpOffsetGrandmasterIdentity : base+ptpOffsetGrandmasterIdentityEnd]),
+		StepsRemoved:            binary.BigEndian.Uint16(rawFrame[base+ptpOffsetStepsRemoved : base+ptpOffsetStepsRemoved+2]),
+		TimeSource:              rawFrame[base+ptpOffsetTimeSource],
+	}
+	logrus.Debugf("Parsed PTP Announce: %s", announce)
+	return announce
+}
+
 func runLocalCommand(command string) (outStr, errStr string, err error) {
 	const chrootHost = "chroot /host "
 	if strings.Contains(command, chrootHost) {
@@ -201,6 +280,7 @@ func main() {
 	if cfg.UseContainerCmds {
 		cmdPrefix = ""
 	}
+	logrus.SetFormatter(&logrus.TextFormatter{DisableColors: true})
 	logrus.SetLevel(logrus.InfoLevel)
 
 	err = initPCIMap(cmdPrefix)
@@ -311,6 +391,20 @@ func RecvFrame(iface *exports.Iface, macsExist map[string]bool) {
 				}
 				if MacsPerIface[aFrame.Type][iface.IfName].Local.IfMac != aFrame.MacSa {
 					MacsPerIface[aFrame.Type][iface.IfName].Remote[aFrame.MacSa.String()] = true
+				}
+			}
+			// For PTP frames, try to decode the Announce message
+			if strings.EqualFold(aFrame.Type, ptpEthertype) {
+				if announce := parsePtpAnnounce(data); announce != nil {
+					if _, ok := MacsPerIface[aFrame.Type]; ok {
+						if neighbor, ok := MacsPerIface[aFrame.Type][iface.IfName]; ok {
+							if neighbor.PtpAnnounces == nil {
+								neighbor.PtpAnnounces = make(map[string]*exports.PtpAnnounceData)
+							}
+							// Store per GM identity; latest announce from each GM wins
+							neighbor.PtpAnnounces[announce.GrandmasterIdentity] = announce
+						}
+					}
 				}
 			}
 		}
