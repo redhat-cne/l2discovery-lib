@@ -35,6 +35,8 @@ func (config testGraph) GetPortsGettingPTP() []*exports.PtpIf {
 }
 
 // Runs Solver to find optimal configurations
+//
+//nolint:funlen // example program, splitting would hurt readability
 func main() {
 	const (
 		// problem/scenario names
@@ -108,13 +110,13 @@ func main() {
 		filteredOCProblemName,
 		[][][]int{
 			{ // step1: first interface must have domain 24 and clock class < 135
-				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 0, 24, graphsolver.Positive),
-				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 0, 135, graphsolver.Positive),
+				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 0, 24, graphsolver.Positive),     //nolint:mnd // PTP domain 24
+				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 0, 135, graphsolver.Positive), //nolint:mnd // clock class < holdover
 			},
 			{ // step2: second interface on same LAN, also domain 24 and clock class < 135
 				graphsolver.Step2(graphsolver.StepSameLan2, 0, 1, graphsolver.Positive),
-				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 1, 24, graphsolver.Positive),
-				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 1, 135, graphsolver.Positive),
+				graphsolver.Step1V(graphsolver.StepPTPDomainEquals, 1, 24, graphsolver.Positive),     //nolint:mnd // PTP domain 24
+				graphsolver.Step1V(graphsolver.StepClockClassLessThan, 1, 135, graphsolver.Positive), //nolint:mnd // clock class < holdover
 			},
 		},
 		[]int{tagSlave: 0, tagGrandmaster: 1},

@@ -427,6 +427,8 @@ func NilWrapper() bool {
 // Step format: [FunctionCode, ParamCount, Param1, Param2, ..., NegationFlag]
 // NegationFlag: 0 = Positive (normal), 1 = Negative (inverted result)
 // If NegationFlag is omitted, defaults to Positive (0)
+//
+//nolint:funlen // dispatch table setup makes this long but splitting would hurt readability
 func applyStep(config exports.L2Info, step [][]int, combinations []int) bool {
 	type paramNum int
 
@@ -473,10 +475,11 @@ func applyStep(config exports.L2Info, step [][]int, combinations []int) bool {
 		// For OneIfaceOneValue (10): negation is at index 4 (2 params after paramType)
 		// For OneIfaceTwoValues (11): negation is at index 5 (3 params after paramType)
 		negationIdx := negationIdxBase + test[1] // index of negation flag
-		if test[1] == OneIfaceOneValue {
+		switch test[1] {
+		case OneIfaceOneValue:
 			// For mixed param steps: [fn, paramType, ifParam, valueParam, negate]
 			negationIdx = 4
-		} else if test[1] == OneIfaceTwoValues {
+		case OneIfaceTwoValues:
 			// For mixed param steps: [fn, paramType, ifParam, valueParam1, valueParam2, negate]
 			negationIdx = 5
 		}
@@ -485,7 +488,7 @@ func applyStep(config exports.L2Info, step [][]int, combinations []int) bool {
 			negate = test[negationIdx] == Negative
 		}
 
-		//nolint:gosec // G602: slice indices are controlled by step definition and param count in test[1]
+		//nolint:gosec // G602: indices are bounded by step definition constants
 		switch test[1] {
 		case int(NoParam):
 			stepResult = AlgoCode0[test[0]]()
