@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/openshift/ptp-operator/test/pkg/client"
+	"github.com/k8snetworkplumbingwg/ptp-operator/test/pkg/client"
 	l2lib "github.com/redhat-cne/l2discovery-lib"
 	"github.com/redhat-cne/l2discovery-lib/pkg/graphsolver"
 )
