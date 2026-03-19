@@ -6,7 +6,7 @@ import (
 
 	"github.com/goccy/go-graphviz"
 	"github.com/goccy/go-graphviz/cgraph"
-	"github.com/openshift/ptp-operator/test/pkg/client"
+	"github.com/k8snetworkplumbingwg/ptp-operator/test/pkg/client"
 	l2lib "github.com/redhat-cne/l2discovery-lib"
 	"github.com/redhat-cne/l2discovery-lib/exports"
 	"github.com/sirupsen/logrus"
