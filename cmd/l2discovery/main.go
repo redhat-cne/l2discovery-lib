@@ -11,6 +11,7 @@ import (
 	"net"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -487,6 +488,8 @@ func getIfs(cfg config, cmdPrefix string) (macs map[string]*exports.Iface, macsE
 		if err != nil {
 			return macs, macsExist, fmt.Errorf("could not get PTP capabilities info err: %s", err)
 		}
+		ptpCaps.HasPtpPins = hasPtpPins(aIfRaw.Ifname, ptpCaps.PhcIndex, cmdPrefix)
+		ptpCaps.GnssDevice = getGnssDevice(aIfRaw.Ifname, cmdPrefix)
 		aIface := exports.Iface{
 			IfName:      aIfRaw.Ifname,
 			IfMac:       exports.Mac{Data: strings.ToUpper(aIfRaw.Address)},
@@ -560,6 +563,8 @@ func getPtpCaps(
 		hwRxString         = "hardware-receive"
 		hwRawClock         = "hardware-raw-clock"
 	)
+	aPTPCaps.PhcIndex = -1
+
 	aCommand := cmdPrefix + ethtoolBaseCommand + ifaceName
 	stdout, stderr, err := runCmd(aCommand)
 	if err != nil || stderr != "" {
@@ -583,5 +588,61 @@ func getPtpCaps(
 			aPTPCaps.HwRawClock = aString == hwRawClock
 		}
 	}
+
+	phcRe := regexp.MustCompile(`(?m)PTP Hardware Clock:\s+(\S+)`)
+	if matches := phcRe.FindStringSubmatch(stdout); len(matches) > 1 {
+		if !strings.EqualFold(matches[1], "none") {
+			if idx, parseErr := strconv.Atoi(matches[1]); parseErr == nil {
+				aPTPCaps.PhcIndex = idx
+			}
+		}
+	}
+
 	return aPTPCaps, nil
+}
+
+func hasPtpPins(ifaceName string, phcIndex int, cmdPrefix string) bool {
+	if phcIndex < 0 {
+		return false
+	}
+	path := fmt.Sprintf("/sys/class/net/%s/device/ptp/ptp%d/pins", ifaceName, phcIndex)
+	cmd := fmt.Sprintf("%sls -d %s 2>/dev/null", cmdPrefix, path)
+	stdout, _, err := runLocalCommand(cmd)
+	return err == nil && strings.TrimSpace(stdout) != ""
+}
+
+func getGnssDevice(ifaceName, cmdPrefix string) string {
+	path := fmt.Sprintf("/sys/class/net/%s/device/gnss", ifaceName)
+	cmd := fmt.Sprintf("%sls %s 2>/dev/null", cmdPrefix, path)
+	stdout, _, err := runLocalCommand(cmd)
+	if err != nil || strings.TrimSpace(stdout) == "" {
+		return ""
+	}
+	for _, dev := range strings.Split(strings.TrimSpace(stdout), "\n") {
+		if dev != "" && checkGNRMC(dev, cmdPrefix) {
+			return dev
+		}
+	}
+	return ""
+}
+
+func checkGNRMC(deviceName, cmdPrefix string) bool {
+	cmd := fmt.Sprintf("%shead -n 1 /dev/%s", cmdPrefix, strings.TrimSpace(deviceName))
+	stdout, _, err := runLocalCommand(cmd)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "GNRMC") {
+			parts := strings.Split(line, ",")
+			if len(parts) > 1 {
+				timeVal := parts[1]
+				formattedTime := time.Now().UTC().Format("150405") + ".00"
+				if strings.EqualFold(timeVal, formattedTime) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }

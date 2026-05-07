@@ -359,14 +359,36 @@ func SameNicWrapper(config exports.L2Info, if1, if2 int) bool {
 	return SameNic(config.GetPtpIfList()[if1], config.GetPtpIfList()[if2])
 }
 
-// IsWpcNic determines if the NIC is intel WPC NIC
+// IsWpcNic determines if the NIC is an intel WPC NIC by checking subsystem,
+// valid PHC index, and PTP pins support.
 func IsWpcNic(ifaceName1 *exports.PtpIf) bool {
-	return strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID)
+	if !strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID) {
+		return false
+	}
+	if ifaceName1.IfPTPCaps.PhcIndex < 0 {
+		return false
+	}
+	return ifaceName1.IfPTPCaps.HasPtpPins
 }
 
-// IsWpcNicWrapper is the wrapper for IsWpcNic
+// IsWPCNicWrapper checks if the interface is a WPC NIC, considering that PTP pins
+// may be exposed through any sibling interface sharing the same PHC on the same node.
 func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
-	return IsWpcNic(config.GetPtpIfList()[if1])
+	ptpIf := config.GetPtpIfList()[if1]
+	if !strings.Contains(ptpIf.IfPci.Subsystem, WPCNICSubsystemID) {
+		return false
+	}
+	if ptpIf.IfPTPCaps.PhcIndex < 0 {
+		return false
+	}
+	for _, peer := range config.GetPtpIfList() {
+		if peer.NodeName == ptpIf.NodeName &&
+			peer.IfPTPCaps.PhcIndex == ptpIf.IfPTPCaps.PhcIndex &&
+			peer.IfPTPCaps.HasPtpPins {
+			return true
+		}
+	}
+	return false
 }
 
 // ClockClassLessThan checks if any PTP Announce received on the interface
