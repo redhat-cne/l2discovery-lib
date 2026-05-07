@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
@@ -488,8 +489,15 @@ func getIfs(cfg config, cmdPrefix string) (macs map[string]*exports.Iface, macsE
 		if err != nil {
 			return macs, macsExist, fmt.Errorf("could not get PTP capabilities info err: %s", err)
 		}
-		ptpCaps.HasPtpPins = hasPtpPins(aIfRaw.Ifname, ptpCaps.PhcIndex, cmdPrefix)
-		ptpCaps.GnssDevice = getGnssDevice(aIfRaw.Ifname, cmdPrefix)
+		hostPrefix := ""
+		if strings.Contains(cmdPrefix, "/host") {
+			hostPrefix = "/host"
+		} else if _, statErr := os.Stat("/host/sys"); statErr == nil {
+			hostPrefix = "/host"
+		}
+		ptpCaps.HasPtpPins = hasPtpPins(aIfRaw.Ifname, ptpCaps.PhcIndex, hostPrefix)
+		pciBusAddr := address.Device + "." + address.Function
+		ptpCaps.GnssDevice = getGnssDevice(aIfRaw.Ifname, pciBusAddr, hostPrefix)
 		aIface := exports.Iface{
 			IfName:      aIfRaw.Ifname,
 			IfMac:       exports.Mac{Data: strings.ToUpper(aIfRaw.Address)},
@@ -598,36 +606,60 @@ func getPtpCaps(
 		}
 	}
 
+	if aPTPCaps.PhcIndex < 0 {
+		phcRe2 := regexp.MustCompile(`(?m)Hardware timestamp provider index:\s+(\S+)`)
+		if matches := phcRe2.FindStringSubmatch(stdout); len(matches) > 1 {
+			if !strings.EqualFold(matches[1], "none") {
+				if idx, parseErr := strconv.Atoi(matches[1]); parseErr == nil {
+					aPTPCaps.PhcIndex = idx
+				}
+			}
+		}
+	}
+
 	return aPTPCaps, nil
 }
 
-func hasPtpPins(ifaceName string, phcIndex int, cmdPrefix string) bool {
+func hasPtpPins(ifaceName string, phcIndex int, hostPrefix string) bool {
 	if phcIndex < 0 {
 		return false
 	}
-	path := fmt.Sprintf("/sys/class/net/%s/device/ptp/ptp%d/pins", ifaceName, phcIndex)
-	cmd := fmt.Sprintf("%sls -d %s 2>/dev/null", cmdPrefix, path)
-	stdout, _, err := runLocalCommand(cmd)
-	return err == nil && strings.TrimSpace(stdout) != ""
-}
-
-func getGnssDevice(ifaceName, cmdPrefix string) string {
-	path := fmt.Sprintf("/sys/class/net/%s/device/gnss", ifaceName)
-	cmd := fmt.Sprintf("%sls %s 2>/dev/null", cmdPrefix, path)
+	path := fmt.Sprintf("%s/sys/class/ptp/ptp%d/pins", hostPrefix, phcIndex)
+	devPath := fmt.Sprintf("%s/sys/class/net/%s/device/ptp/ptp%d/pins", hostPrefix, ifaceName, phcIndex)
+	cmd := fmt.Sprintf("ls -d %s %s 2>/dev/null | head -1", path, devPath)
 	stdout, _, err := runLocalCommand(cmd)
 	if err != nil || strings.TrimSpace(stdout) == "" {
-		return ""
+		return false
 	}
-	for _, dev := range strings.Split(strings.TrimSpace(stdout), "\n") {
-		if dev != "" && checkGNRMC(dev, cmdPrefix) {
-			return dev
+	pinsDir := strings.TrimSpace(stdout)
+	listCmd := fmt.Sprintf("ls %s 2>/dev/null", pinsDir)
+	listOut, _, listErr := runLocalCommand(listCmd)
+	return listErr == nil && strings.TrimSpace(listOut) != ""
+}
+
+func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) string {
+	paths := []string{
+		fmt.Sprintf("%s/sys/class/net/%s/device/gnss", hostPrefix, ifaceName),
+		fmt.Sprintf("%s/sys/bus/pci/devices/%s/gnss", hostPrefix, pciBusAddr),
+	}
+	for _, path := range paths {
+		cmd := fmt.Sprintf("ls %s 2>/dev/null", path)
+		stdout, _, err := runLocalCommand(cmd)
+		if err != nil || strings.TrimSpace(stdout) == "" {
+			continue
+		}
+		for _, dev := range strings.Split(strings.TrimSpace(stdout), "\n") {
+			if dev != "" && checkGNRMC(dev, hostPrefix) {
+				return dev
+			}
 		}
 	}
 	return ""
 }
 
-func checkGNRMC(deviceName, cmdPrefix string) bool {
-	cmd := fmt.Sprintf("%shead -n 1 /dev/%s", cmdPrefix, strings.TrimSpace(deviceName))
+func checkGNRMC(deviceName, hostPrefix string) bool {
+	devPath := fmt.Sprintf("%s/dev/%s", hostPrefix, strings.TrimSpace(deviceName))
+	cmd := fmt.Sprintf("timeout 3 head -n 1 %s", devPath)
 	stdout, _, err := runLocalCommand(cmd)
 	if err != nil {
 		return false
@@ -635,12 +667,8 @@ func checkGNRMC(deviceName, cmdPrefix string) bool {
 	for _, line := range strings.Split(stdout, "\n") {
 		if strings.Contains(line, "GNRMC") {
 			parts := strings.Split(line, ",")
-			if len(parts) > 1 {
-				timeVal := parts[1]
-				formattedTime := time.Now().UTC().Format("150405") + ".00"
-				if strings.EqualFold(timeVal, formattedTime) {
-					return true
-				}
+			if len(parts) > 2 && parts[2] == "A" {
+				return true
 			}
 		}
 	}

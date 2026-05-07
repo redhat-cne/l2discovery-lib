@@ -359,34 +359,47 @@ func SameNicWrapper(config exports.L2Info, if1, if2 int) bool {
 	return SameNic(config.GetPtpIfList()[if1], config.GetPtpIfList()[if2])
 }
 
-// IsWpcNic determines if the NIC is an intel WPC NIC by checking subsystem,
-// valid PHC index, and PTP pins support.
+// IsWpcNic determines if the NIC is a WPC NIC by checking subsystem,
+// valid PHC index, and PTP pins support. Also accepts NICs that have
+// both PTP pins and a GNSS device (covers netdevsim WPC emulation).
 func IsWpcNic(ifaceName1 *exports.PtpIf) bool {
-	if !strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID) {
-		return false
-	}
 	if ifaceName1.IfPTPCaps.PhcIndex < 0 {
 		return false
 	}
-	return ifaceName1.IfPTPCaps.HasPtpPins
+	hasWpcSubsystem := strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID)
+	hasWpcCaps := ifaceName1.IfPTPCaps.HasPtpPins && ifaceName1.IfPTPCaps.GnssDevice != ""
+	if !hasWpcSubsystem && !hasWpcCaps {
+		return false
+	}
+	return true
 }
 
 // IsWPCNicWrapper checks if the interface is a WPC NIC, considering that PTP pins
-// may be exposed through any sibling interface sharing the same PHC on the same node.
+// and GNSS devices may be exposed through any sibling interface sharing the same
+// PHC on the same node.
 func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 	ptpIf := config.GetPtpIfList()[if1]
-	if !strings.Contains(ptpIf.IfPci.Subsystem, WPCNICSubsystemID) {
-		return false
-	}
 	if ptpIf.IfPTPCaps.PhcIndex < 0 {
 		return false
 	}
+	hasWpcSubsystem := strings.Contains(ptpIf.IfPci.Subsystem, WPCNICSubsystemID)
+	var hasPins, hasGnss bool
 	for _, peer := range config.GetPtpIfList() {
 		if peer.NodeName == ptpIf.NodeName &&
-			peer.IfPTPCaps.PhcIndex == ptpIf.IfPTPCaps.PhcIndex &&
-			peer.IfPTPCaps.HasPtpPins {
-			return true
+			peer.IfPTPCaps.PhcIndex == ptpIf.IfPTPCaps.PhcIndex {
+			if peer.IfPTPCaps.HasPtpPins {
+				hasPins = true
+			}
+			if peer.IfPTPCaps.GnssDevice != "" {
+				hasGnss = true
+			}
 		}
+	}
+	if hasWpcSubsystem && hasPins {
+		return true
+	}
+	if hasPins && hasGnss {
+		return true
 	}
 	return false
 }
