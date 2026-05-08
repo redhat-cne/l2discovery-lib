@@ -9,8 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -487,6 +489,15 @@ func getIfs(cfg config, cmdPrefix string) (macs map[string]*exports.Iface, macsE
 		if err != nil {
 			return macs, macsExist, fmt.Errorf("could not get PTP capabilities info err: %s", err)
 		}
+		hostPrefix := ""
+		if strings.Contains(cmdPrefix, "/host") {
+			hostPrefix = "/host"
+		} else if _, statErr := os.Stat("/host/sys"); statErr == nil {
+			hostPrefix = "/host"
+		}
+		ptpCaps.HasPtpPins = hasPtpPins(aIfRaw.Ifname, ptpCaps.PhcIndex, hostPrefix)
+		pciBusAddr := address.Device + "." + address.Function
+		ptpCaps.GnssDevice = getGnssDevice(aIfRaw.Ifname, pciBusAddr, hostPrefix)
 		aIface := exports.Iface{
 			IfName:      aIfRaw.Ifname,
 			IfMac:       exports.Mac{Data: strings.ToUpper(aIfRaw.Address)},
@@ -560,6 +571,8 @@ func getPtpCaps(
 		hwRxString         = "hardware-receive"
 		hwRawClock         = "hardware-raw-clock"
 	)
+	aPTPCaps.PhcIndex = -1
+
 	aCommand := cmdPrefix + ethtoolBaseCommand + ifaceName
 	stdout, stderr, err := runCmd(aCommand)
 	if err != nil || stderr != "" {
@@ -583,5 +596,81 @@ func getPtpCaps(
 			aPTPCaps.HwRawClock = aString == hwRawClock
 		}
 	}
+
+	phcRe := regexp.MustCompile(`(?m)PTP Hardware Clock:\s+(\S+)`)
+	if matches := phcRe.FindStringSubmatch(stdout); len(matches) > 1 {
+		if !strings.EqualFold(matches[1], "none") {
+			if idx, parseErr := strconv.Atoi(matches[1]); parseErr == nil {
+				aPTPCaps.PhcIndex = idx
+			}
+		}
+	}
+
+	if aPTPCaps.PhcIndex < 0 {
+		phcRe2 := regexp.MustCompile(`(?m)Hardware timestamp provider index:\s+(\S+)`)
+		if matches := phcRe2.FindStringSubmatch(stdout); len(matches) > 1 {
+			if !strings.EqualFold(matches[1], "none") {
+				if idx, parseErr := strconv.Atoi(matches[1]); parseErr == nil {
+					aPTPCaps.PhcIndex = idx
+				}
+			}
+		}
+	}
+
 	return aPTPCaps, nil
+}
+
+func hasPtpPins(ifaceName string, phcIndex int, hostPrefix string) bool {
+	if phcIndex < 0 {
+		return false
+	}
+	path := fmt.Sprintf("%s/sys/class/ptp/ptp%d/pins", hostPrefix, phcIndex)
+	devPath := fmt.Sprintf("%s/sys/class/net/%s/device/ptp/ptp%d/pins", hostPrefix, ifaceName, phcIndex)
+	cmd := fmt.Sprintf("ls -d %s %s 2>/dev/null | head -1", path, devPath)
+	stdout, _, err := runLocalCommand(cmd)
+	if err != nil || strings.TrimSpace(stdout) == "" {
+		return false
+	}
+	pinsDir := strings.TrimSpace(stdout)
+	listCmd := fmt.Sprintf("ls %s 2>/dev/null", pinsDir)
+	listOut, _, listErr := runLocalCommand(listCmd)
+	return listErr == nil && strings.TrimSpace(listOut) != ""
+}
+
+func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) string {
+	paths := []string{
+		fmt.Sprintf("%s/sys/class/net/%s/device/gnss", hostPrefix, ifaceName),
+		fmt.Sprintf("%s/sys/bus/pci/devices/%s/gnss", hostPrefix, pciBusAddr),
+	}
+	for _, path := range paths {
+		cmd := fmt.Sprintf("ls %s 2>/dev/null", path)
+		stdout, _, err := runLocalCommand(cmd)
+		if err != nil || strings.TrimSpace(stdout) == "" {
+			continue
+		}
+		for _, dev := range strings.Split(strings.TrimSpace(stdout), "\n") {
+			if dev != "" && checkGNRMC(dev, hostPrefix) {
+				return dev
+			}
+		}
+	}
+	return ""
+}
+
+func checkGNRMC(deviceName, hostPrefix string) bool {
+	devPath := fmt.Sprintf("%s/dev/%s", hostPrefix, strings.TrimSpace(deviceName))
+	cmd := fmt.Sprintf("timeout 3 head -n 1 %s", devPath)
+	stdout, _, err := runLocalCommand(cmd)
+	if err != nil {
+		return false
+	}
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.Contains(line, "GNRMC") {
+			parts := strings.Split(line, ",")
+			if len(parts) > 2 && parts[2] == "A" {
+				return true
+			}
+		}
+	}
+	return false
 }
