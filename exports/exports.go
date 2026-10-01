@@ -46,6 +46,21 @@ func (mac Mac) String() string {
 		string([]byte(mac.Data)[10:12]))
 }
 
+func (mac Mac) PrettyString() string {
+	if strings.Contains(mac.Data, ":") {
+		return strings.ToUpper(mac.Data)
+	}
+	if len(mac.Data) != 12 {
+		return mac.Data
+	}
+	return strings.ToUpper(mac.Data[0:2] + ":" +
+		mac.Data[2:4] + ":" +
+		mac.Data[4:6] + ":" +
+		mac.Data[6:8] + ":" +
+		mac.Data[8:10] + ":" +
+		mac.Data[10:12])
+}
+
 type PCIAddress struct {
 	Device, Function, Description, Subsystem string
 }
@@ -128,7 +143,7 @@ func (index IfClusterIndex) String() string {
 }
 
 func (iface *PtpIf) String() string {
-	return fmt.Sprintf("%s : %s", iface.NodeName, iface.IfName)
+	return fmt.Sprintf("%s : %s (mac: %s)", iface.NodeName, iface.IfName, iface.IfMac.PrettyString())
 }
 
 func (iface *PtpIf) String1() string {

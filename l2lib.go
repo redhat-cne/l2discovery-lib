@@ -285,7 +285,7 @@ func (config *L2DiscoveryConfig) DiscoverL2Connectivity(ptpInterfacesOnly, allIF
 		}
 	}
 	if err != nil {
-		logrus.Errorf("failed to get l2 discovery data after %d attempts, err=%s", L2DiscoveryRetries, err)
+		return fmt.Errorf("failed to get l2 discovery data after %d attempts, err=%w", L2DiscoveryRetries, err)
 	}
 	// Delete L2 discovery daemonset
 	if config.L2DsMode == Managed {
@@ -321,6 +321,12 @@ func (config *L2DiscoveryConfig) PrintAllNICs() {
 // Gets the latest topology reports from the l2discovery pods
 func (config *L2DiscoveryConfig) getL2Disc(ptpInterfacesOnly bool) error {
 	config.DiscoveryMap = make(map[string]map[string]map[string]*exports.Neighbors)
+	config.PtpIfList = []*exports.PtpIf{}
+	config.ClusterMacs = make(map[exports.IfClusterIndex]string)
+	config.ClusterIndexes = make(map[string]exports.IfClusterIndex)
+	config.ClusterMacToInt = make(map[string]int)
+	config.ClusterIndexToInt = make(map[exports.IfClusterIndex]int)
+	config.PtpIfListUnfiltered = make(map[string]*exports.PtpIf)
 	index := 0
 	keys := make([]string, 0, len(config.L2DiscoveryPods))
 
