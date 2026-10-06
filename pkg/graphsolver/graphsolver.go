@@ -101,6 +101,7 @@ const (
 	// same node
 	StepIsPTP AlgoFunction1 = iota
 	StepIsWPCNic
+	StepHasGNSSDevice
 )
 
 // list of Algorithm function with 2 params
@@ -404,6 +405,12 @@ func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 	return false
 }
 
+// HasGNSSDeviceWrapper reports whether the selected interface has a connected
+// GNSS device discovered on it.
+func HasGNSSDeviceWrapper(config exports.L2Info, if1 int) bool {
+	return config.GetPtpIfList()[if1].IfPTPCaps.GnssDevice != ""
+}
+
 // ClockClassLessThan checks if any PTP Announce received on the interface
 // has a clock class less than the given threshold value.
 func ClockClassLessThan(ptpIf *exports.PtpIf, value int) bool {
@@ -481,9 +488,10 @@ func applyStep(config exports.L2Info, step [][]int, combinations []int) bool {
 	var AlgoCode0 [1]ConfigFunc0
 	AlgoCode0[StepNil] = NilWrapper
 
-	var AlgoCode1 [2]ConfigFunc1
+	var AlgoCode1 [3]ConfigFunc1
 	AlgoCode1[StepIsPTP] = IsPTPWrapper
 	AlgoCode1[StepIsWPCNic] = IsWPCNicWrapper
+	AlgoCode1[StepHasGNSSDevice] = HasGNSSDeviceWrapper
 
 	var AlgoCode2 [3]ConfigFunc2
 	AlgoCode2[StepSameLan2] = SameLan2Wrapper
