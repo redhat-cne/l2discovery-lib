@@ -25,6 +25,24 @@ func wpcInterface(node, name, device string, phc int, gnss exports.GNSSDevice) *
 	}
 }
 
+func netdevsimInterface(node, name, device string, phc int, gnss exports.GNSSDevice) *exports.PtpIf {
+	iface := wpcInterface(node, name, device, phc, gnss)
+	iface.IfPci.Subsystem = ""
+	return iface
+}
+
+func TestWPCNic_NetDevSimFallback(t *testing.T) {
+	iface := netdevsimInterface("connected", "eth0", "", 1, exports.GNSSDevice{Path: "gnss0", Connected: true})
+	config := &testL2Info{interfaces: []*exports.PtpIf{iface}}
+
+	if !IsWpcNic(iface) {
+		t.Fatal("expected connected GNSS and PTP pins to identify a netdevsim WPC")
+	}
+	if !IsWPCNicWrapper(config, 0) {
+		t.Fatal("expected connected GNSS and PTP pins to identify a netdevsim WPC through the wrapper")
+	}
+}
+
 func TestTGMConstraintRequiresConnectedGNSSDevice(t *testing.T) {
 	config := &testL2Info{interfaces: []*exports.PtpIf{
 		wpcInterface("disconnected", "ens4f0", "0000:8a:00", 5, exports.GNSSDevice{}),

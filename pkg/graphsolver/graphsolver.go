@@ -360,39 +360,40 @@ func SameNicWrapper(config exports.L2Info, if1, if2 int) bool {
 	return SameNic(config.GetPtpIfList()[if1], config.GetPtpIfList()[if2])
 }
 
-// IsWpcNic determines if the NIC is a WPC NIC by checking subsystem,
-// valid PHC index, and PTP pins support.
+// IsWpcNic identifies WPC hardware by subsystem and PTP pins.
+// Connected GNSS with PTP pins is accepted for netdevsim emulation.
 func IsWpcNic(ifaceName1 *exports.PtpIf) bool {
 	if ifaceName1.IfPTPCaps.PhcIndex < 0 {
 		return false
 	}
 	hasWpcSubsystem := strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID)
-	hasWpcCaps := ifaceName1.IfPTPCaps.HasPtpPins
-	if !hasWpcSubsystem && !hasWpcCaps {
-		return false
-	}
-	return true
+	hasWpcPins := ifaceName1.IfPTPCaps.HasPtpPins
+	hasGnss := ifaceName1.IfPTPCaps.GnssDevice.Path != "" && ifaceName1.IfPTPCaps.GnssDevice.Connected
+	return hasWpcPins && (hasWpcSubsystem || hasGnss)
 }
 
-// IsWPCNicWrapper checks if the interface is a WPC NIC, considering that PTP pins
-// may be exposed through any sibling interface sharing the same
-// PHC on the same node.
+// IsWPCNicWrapper identifies WPC interfaces using capabilities exposed by
+// sibling interfaces sharing the same node and PHC. Connected GNSS with PTP
+// pins is accepted for netdevsim emulation.
 func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 	ptpIf := config.GetPtpIfList()[if1]
 	if ptpIf.IfPTPCaps.PhcIndex < 0 {
 		return false
 	}
 	hasWpcSubsystem := strings.Contains(ptpIf.IfPci.Subsystem, WPCNICSubsystemID)
-	var hasPins bool
+	var hasPins, hasGnss bool
 	for _, peer := range config.GetPtpIfList() {
 		if peer.NodeName == ptpIf.NodeName &&
 			peer.IfPTPCaps.PhcIndex == ptpIf.IfPTPCaps.PhcIndex {
 			if peer.IfPTPCaps.HasPtpPins {
 				hasPins = true
 			}
+			if peer.IfPTPCaps.GnssDevice.Path != "" && peer.IfPTPCaps.GnssDevice.Connected {
+				hasGnss = true
+			}
 		}
 	}
-	return hasWpcSubsystem && hasPins
+	return hasPins && (hasWpcSubsystem || hasGnss)
 }
 
 // HasGNSSDeviceWrapper reports whether the selected interface has a connected
