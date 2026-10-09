@@ -405,10 +405,22 @@ func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 	return false
 }
 
-// HasGNSSDeviceWrapper reports whether the selected interface has a connected
+// HasGNSSDeviceWrapper reports whether the selected interface or one of its siblings has a connected
 // GNSS device discovered on it.
 func HasGNSSDeviceWrapper(config exports.L2Info, if1 int) bool {
-	return config.GetPtpIfList()[if1].IfPTPCaps.GnssDevice != ""
+	ptpIf := config.GetPtpIfList()[if1]
+	if ptpIf.IfPTPCaps.PhcIndex < 0 {
+		return false
+	}
+
+	for _, peer := range config.GetPtpIfList() {
+		if SameNic(peer, ptpIf) {
+			if peer.IfPTPCaps.GnssDevice != "" {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ClockClassLessThan checks if any PTP Announce received on the interface
