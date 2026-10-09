@@ -637,11 +637,12 @@ func hasPtpPins(ifaceName string, phcIndex int, hostPrefix string) bool {
 	return listErr == nil && strings.TrimSpace(listOut) != ""
 }
 
-func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) string {
+func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) exports.GNSSDevice {
 	paths := []string{
 		fmt.Sprintf("%s/sys/class/net/%s/device/gnss", hostPrefix, ifaceName),
 		fmt.Sprintf("%s/sys/bus/pci/devices/%s/gnss", hostPrefix, pciBusAddr),
 	}
+
 	for _, path := range paths {
 		cmd := fmt.Sprintf("ls %s 2>/dev/null", path)
 		stdout, _, err := runLocalCommand(cmd)
@@ -649,12 +650,15 @@ func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) string {
 			continue
 		}
 		for _, dev := range strings.Split(strings.TrimSpace(stdout), "\n") {
-			if dev != "" && checkGNRMC(dev, hostPrefix) {
-				return dev
+			if dev != "" {
+				return exports.GNSSDevice{
+					Path:      dev,
+					Connected: checkGNRMC(dev, hostPrefix),
+				}
 			}
 		}
 	}
-	return ""
+	return exports.GNSSDevice{}
 }
 
 func checkGNRMC(deviceName, hostPrefix string) bool {

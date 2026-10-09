@@ -361,14 +361,13 @@ func SameNicWrapper(config exports.L2Info, if1, if2 int) bool {
 }
 
 // IsWpcNic determines if the NIC is a WPC NIC by checking subsystem,
-// valid PHC index, and PTP pins support. Also accepts NICs that have
-// both PTP pins and a GNSS device (covers netdevsim WPC emulation).
+// valid PHC index, and PTP pins support.
 func IsWpcNic(ifaceName1 *exports.PtpIf) bool {
 	if ifaceName1.IfPTPCaps.PhcIndex < 0 {
 		return false
 	}
 	hasWpcSubsystem := strings.Contains(ifaceName1.IfPci.Subsystem, WPCNICSubsystemID)
-	hasWpcCaps := ifaceName1.IfPTPCaps.HasPtpPins && ifaceName1.IfPTPCaps.GnssDevice != ""
+	hasWpcCaps := ifaceName1.IfPTPCaps.HasPtpPins
 	if !hasWpcSubsystem && !hasWpcCaps {
 		return false
 	}
@@ -376,7 +375,7 @@ func IsWpcNic(ifaceName1 *exports.PtpIf) bool {
 }
 
 // IsWPCNicWrapper checks if the interface is a WPC NIC, considering that PTP pins
-// and GNSS devices may be exposed through any sibling interface sharing the same
+// may be exposed through any sibling interface sharing the same
 // PHC on the same node.
 func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 	ptpIf := config.GetPtpIfList()[if1]
@@ -384,31 +383,23 @@ func IsWPCNicWrapper(config exports.L2Info, if1 int) bool {
 		return false
 	}
 	hasWpcSubsystem := strings.Contains(ptpIf.IfPci.Subsystem, WPCNICSubsystemID)
-	var hasPins, hasGnss bool
+	var hasPins bool
 	for _, peer := range config.GetPtpIfList() {
 		if peer.NodeName == ptpIf.NodeName &&
 			peer.IfPTPCaps.PhcIndex == ptpIf.IfPTPCaps.PhcIndex {
 			if peer.IfPTPCaps.HasPtpPins {
 				hasPins = true
 			}
-			if peer.IfPTPCaps.GnssDevice != "" {
-				hasGnss = true
-			}
 		}
 	}
-	if hasWpcSubsystem && hasPins {
-		return true
-	}
-	if hasPins && hasGnss {
-		return true
-	}
-	return false
+	return hasWpcSubsystem && hasPins
 }
 
 // HasGNSSDeviceWrapper reports whether the selected interface has a connected
 // GNSS device discovered on it.
 func HasGNSSDeviceWrapper(config exports.L2Info, if1 int) bool {
-	return config.GetPtpIfList()[if1].IfPTPCaps.GnssDevice != ""
+	gnssDev := config.GetPtpIfList()[if1].IfPTPCaps.GnssDevice
+	return gnssDev.Path != "" && gnssDev.Connected
 }
 
 // ClockClassLessThan checks if any PTP Announce received on the interface

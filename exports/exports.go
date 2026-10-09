@@ -54,11 +54,20 @@ func (pci PCIAddress) String() string {
 	return fmt.Sprintf("Device:%s Function:%s Description:%s Subsystem:%s", pci.Device, pci.Function, pci.Description, pci.Subsystem)
 }
 
+type GNSSDevice struct {
+	Path      string
+	Connected bool
+}
+
+func (gd GNSSDevice) String() string {
+	return fmt.Sprintf("{path:%q, connected:%t}", gd.Path, gd.Connected)
+}
+
 type PTPCaps struct {
 	HwRx, HwTx, HwRawClock bool
 	PhcIndex               int
 	HasPtpPins             bool
-	GnssDevice             string
+	GnssDevice             GNSSDevice
 }
 
 func (caps PTPCaps) String() string {
