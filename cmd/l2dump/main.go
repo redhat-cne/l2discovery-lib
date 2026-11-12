@@ -83,7 +83,8 @@ func getGraph(data l2lib.L2Info) {
 			if err != nil {
 				logrus.Fatal(err)
 			}
-			nodes[aIf.IfClusterIndex].SetLabel(aIf.InterfaceName)
+			nodes[aIf.IfClusterIndex].SetLabel(fmt.Sprintf("%s\n%s", aIf.InterfaceName, aIf.IfMac.PrettyString()))
+			nodes[aIf.IfClusterIndex].SetShape(cgraph.BoxShape)
 			nodes[aIf.IfClusterIndex].SetColorScheme("svg")
 			nodes[aIf.IfClusterIndex].SetStyle("filled")
 			nodes[aIf.IfClusterIndex].SetColor(aColor)
