@@ -21,6 +21,7 @@ import (
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/redhat-cne/l2discovery-lib/exports"
+	"github.com/redhat-cne/l2discovery-lib/pkg/gnss"
 	"github.com/redhat-cne/l2discovery-lib/pkg/parser"
 	"github.com/sirupsen/logrus"
 )
@@ -657,20 +658,14 @@ func getGnssDevice(ifaceName, pciBusAddr, hostPrefix string) string {
 	return ""
 }
 
+// checkGNRMC reports whether the GNSS device emits a GNRMC sentence with a
+// valid fix. The receiver can interleave UBX binary records with NMEA output, so
+// the check scans a short bounded window of the stream instead of the first line.
 func checkGNRMC(deviceName, hostPrefix string) bool {
 	devPath := fmt.Sprintf("%s/dev/%s", hostPrefix, strings.TrimSpace(deviceName))
-	cmd := fmt.Sprintf("timeout 3 head -n 1 %s", devPath)
-	stdout, _, err := runLocalCommand(cmd)
+	stdout, _, err := runLocalCommand(gnss.GNRMCSentenceCommand(devPath))
 	if err != nil {
 		return false
 	}
-	for _, line := range strings.Split(stdout, "\n") {
-		if strings.Contains(line, "GNRMC") {
-			parts := strings.Split(line, ",")
-			if len(parts) > 2 && parts[2] == "A" {
-				return true
-			}
-		}
-	}
-	return false
+	return gnss.HasValidFix(stdout)
 }
